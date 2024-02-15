@@ -5,7 +5,7 @@ import shutil
 import click
 
 from . import tone
-from .main import main
+from .pitch import PitchConverter
 
 
 @click.command()
@@ -59,7 +59,7 @@ def _main_(
         print("Unable to locate ffmpeg, use --ffmpeg to specify the path to ffmpeg")
         exit(1)
 
-    main(
+    PitchConverter(
         audio=audio,
         video=video,
         output=output or ".".join(video.split(".")[:-1]) + "_with_pitch.mp4",
@@ -71,7 +71,7 @@ def _main_(
         pitch_position=pitch_position,
         min_freq=tone.Tonality.normalize_to_freq(min_pitch),
         max_freq=tone.Tonality.normalize_to_freq(max_pitch),
-    )
+    )()
 
 
 if __name__ == "__main__":
