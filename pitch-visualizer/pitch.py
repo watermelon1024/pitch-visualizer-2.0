@@ -50,8 +50,8 @@ class PitchConverter:
     def run(self):
         self.get_video_resolution()
         with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = self.generate_pitch_video(tmpdir)
-            self.combine_video(output_path)
+            output_paths = self.generate_pitch_video(tmpdir)
+            self.combine_video(output_paths)
 
     def get_video_resolution(self) -> tuple[int, int]:
         if self.resolution:
@@ -79,7 +79,7 @@ class PitchConverter:
         self.resolution = tuple(map(int, process.stdout.decode().split("x")))
         return self.resolution
 
-    def generate_pitch_video(self, output_dir):
+    def generate_pitch_video(self, output_dir) -> list[str]:
         # Get all the pitch in the audio and plot it
         sound = parselmouth.Sound(self.audio_path)
         pitch = sound.to_pitch_ac(pitch_floor=self.min_freq, pitch_ceiling=self.max_freq)
@@ -119,6 +119,7 @@ class PitchConverter:
         ax.plot(pitch_xs, pitch_values, ".", markersize=5, color="orange")
 
         print("Generating pitch video")
+        output_paths: list[str] = []
         with ProgressBar(total=total_frames_count) as progress_bar:
             self.progress_bar = progress_bar
             output_path = self.generate_animate(
@@ -131,9 +132,10 @@ class PitchConverter:
                 mid_line,
                 os.path.join(output_dir, "pitch.mp4"),
             )
+            output_paths.append(output_path)
 
         plt.close("all")
-        return output_path
+        return output_paths
 
     def generate_animate(
         self,
@@ -207,7 +209,7 @@ class PitchConverter:
 
         self.progress_bar.advance()
 
-    def combine_video(self, pitch_path: str):
+    def combine_video(self, pitch_paths: list[str]):
 
         overlay_param = {
             "top_right": "W-w-10:10",
@@ -221,15 +223,20 @@ class PitchConverter:
         print("Combining video")
         print(f"Writing to {os.path.abspath(self.output_path)}")
 
+        inputs = []
+        for path in [self.video_path, *pitch_paths]:
+            if self.gpu:
+                # 使用 NVIDIA CUDA 加速
+                inputs.extend(("-hwaccel", "cuvid", "-hwaccel_output_format", "cuda"))
+            inputs.extend(("-i", path))
+
         subprocess.run(
             [
                 # fmt: off
                 self.ffmpeg,
                 "-loglevel", "error",
                 "-stats",
-                # 使用 NVIDIA CUDA 加速
-                "-hwaccel", "cuvid", "-hwaccel_output_format", "cuda", "-i", self.video_path,
-                "-hwaccel", "cuvid", "-hwaccel_output_format", "cuda", "-i", pitch_path,
+                *inputs,
                 "-c:v", "h264_nvenc",  # 使用 NVIDIA NVENC 編碼器
                 "-filter_complex",
                 f"[0:v]hwupload [base];"
