@@ -94,6 +94,7 @@ class PitchConverter:
         plt.rcParams.update({"font.size": 9})
         # create figure
         fig = plt.figure(figsize=(9.6, 5.4), layout="tight", dpi=100)
+        fig.set_animated(True)
         # resolution: tuple(r / 200 for r in self.resolution)
         ax = fig.add_subplot(1, 1, 1)
         # Y-axis
@@ -106,17 +107,24 @@ class PitchConverter:
         # tone standard line
         tone_labels: list[plt.Text] = []
         for tone, f in Tonality(self.tone).get_tone_and_freq(self.min_freq, self.max_freq):
-            ax.axhline(y=f, color="blue")
+            line = ax.axhline(y=f, color="blue")
+            line.set_animated(True)
             y = f + 0.02
             text = ax.text(1.02, y, tone, ha="left", va="bottom", fontsize=10)
             text.set_visible(pitch_low <= y <= pitch_high)
+            text.set_animated(True)
             tone_labels.append(text)
         # X-axis
         # ax.set_xlim(sound.xmin, sound.xmax)
+        ax.get_xaxis().set_visible(False)
         # draw mid line (current time)
         mid_line = ax.axvline(0, color="red")
+        mid_labels = fig.text(0.5, 0, "0", ha="center", va="bottom", fontsize=9)
         # draw vocal date
-        ax.plot(pitch_xs, pitch_values, ".", markersize=5, color="orange")
+        (pitch_plot,) = ax.plot(pitch_xs, pitch_values, ".", markersize=5, color="orange")
+        # set animate
+        for artist in (*tone_labels, mid_line, pitch_plot):
+            artist.set_animated(True)
 
         print("Generating pitch video")
         output_paths: list[str] = []
@@ -128,8 +136,10 @@ class PitchConverter:
                 range(total_frames_count),
                 pitch_xs,
                 pitch_values,
+                pitch_plot,
                 tuple(tone_labels),
                 mid_line,
+                mid_labels,
                 os.path.join(output_dir, "pitch.mp4"),
             )
             output_paths.append(output_path)
@@ -144,8 +154,10 @@ class PitchConverter:
         range_obj: range,
         time: np.ndarray,
         pitch: np.ndarray,
+        pitch_plot: plt.Line2D,
         tone_labels: tuple[plt.Text],
         mid_line: plt.Line2D,
+        mid_labels: plt.Text,
         output_path: str,
     ):
         # print(f"Gen output_path: {output_path}, time: {range_obj[0]}-{range_obj[-1]}")
@@ -156,10 +168,13 @@ class PitchConverter:
                 ax=ax,
                 time=time,
                 pitch=pitch,
+                pitch_plot=pitch_plot,
                 mid_line=mid_line,
+                mid_labels=mid_labels,
                 tone_labels=tone_labels,
             ),
             frames=range_obj,
+            blit=True,
         )
         ani.save(output_path, writer=animation.FFMpegWriter(fps=self.fps))
         # print(f"Done output_path: {output_path}")
@@ -171,13 +186,20 @@ class PitchConverter:
         ax: plt.Axes,
         time: np.ndarray,
         pitch: np.ndarray,
+        pitch_plot: plt.Line2D,
         mid_line: plt.Line2D,
+        mid_labels: plt.Text,
         tone_labels: list[plt.Text],
     ):
         curr_time = frame_idx / self.fps
         time_start = curr_time - 2.5
         time_end = curr_time + 2.5
         mid_line.set_data([[curr_time, curr_time], [0, 1]])
+
+        # pitch data
+        time_mask = (time >= time_start) & (time <= time_end)
+        pitch_plot.set_data(time[time_mask], pitch[time_mask])
+        mid_labels.set_text(f"{curr_time:.1f}")
 
         if time_start % 1 == 0:
             time_start -= self.dt
@@ -205,9 +227,10 @@ class PitchConverter:
             label.set_position((time_start + 0.02, y))
 
         ax.set_xlim(time_start, time_end)
-        # print(time_start, time_end)
 
         self.progress_bar.advance()
+
+        return (pitch_plot,)
 
     def combine_video(self, pitch_paths: list[str]):
         print("Combining video")
@@ -222,7 +245,7 @@ class PitchConverter:
 
         if self.gpu:
             # 使用 NVIDIA NVENC 編碼器
-            inputs.extend(("-c:v h264_nvenc", "-c:a copy"))
+            inputs.extend(("-c:v", "h264_nvenc"))
 
         filter_complex = (
             (
