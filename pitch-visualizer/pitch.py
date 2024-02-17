@@ -210,16 +210,6 @@ class PitchConverter:
         self.progress_bar.advance()
 
     def combine_video(self, pitch_paths: list[str]):
-
-        overlay_param = {
-            "top_right": "W-w-10:10",
-            "top_left": "10:10",
-            "bottom_right": "W-w-10:H-h-10",
-            "bottom_left": "10:H-h-10",
-        }.get(self.pitch_position)
-        if not overlay_param:
-            raise ValueError(f"Invalid pitch position {self.pitch_position}")
-
         print("Combining video")
         print(f"Writing to {os.path.abspath(self.output_path)}")
 
@@ -243,7 +233,7 @@ class PitchConverter:
                 # Scale the pitch video to half of the original video
                 f"[1:v]hwupload,scale_cuda={self.pitch_width or self.resolution[0] // 2}:-1 [pitch];"
                 # combine the video
-                f"[base][pitch]overlay_cuda={overlay_param} [outv]",
+                f"[base][pitch]overlay_cuda={self.pitch_position} [outv]",
                 "-map", "[outv]",
                 "-map", "0:a",
                 self.output_path,
