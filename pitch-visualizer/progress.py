@@ -1,13 +1,13 @@
 from rich.progress import (
+    BarColumn,
+    MofNCompleteColumn,
     Progress,
     Task,
     TaskID,
-    TimeRemainingColumn,
-    TimeElapsedColumn,
-    TextColumn,
-    BarColumn,
     TaskProgressColumn,
-    MofNCompleteColumn,
+    TextColumn,
+    TimeElapsedColumn,
+    TimeRemainingColumn,
     TransferSpeedColumn,
 )
 from rich.text import Text

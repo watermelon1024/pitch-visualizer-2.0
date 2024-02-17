@@ -4,8 +4,8 @@ import tempfile
 import warnings
 from functools import partial
 
-import matplotlib.pyplot as plt
 import matplotlib.animation as animation
+import matplotlib.pyplot as plt
 import numpy as np
 import parselmouth
 
