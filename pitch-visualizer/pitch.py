@@ -220,6 +220,22 @@ class PitchConverter:
                 inputs.extend(("-hwaccel", "cuvid", "-hwaccel_output_format", "cuda"))
             inputs.extend(("-i", path))
 
+        if self.gpu:
+            # 使用 NVIDIA NVENC 編碼器
+            inputs.extend(("-c:v h264_nvenc", "-c:a copy"))
+
+        filter_complex = (
+            (
+                "[0:v]hwupload [base];"
+                # Scale the pitch video to half of the original video
+                "[1:v]hwupload, scale_cuda={scale}:-1 [pitch];"
+                # combine the video
+                "[base][pitch]overlay_cuda={position} [outv]"
+            )
+            if self.gpu
+            else ("[1:v]scale={scale}:-1 [pitch];" "[0:v][pitch]overlay={position} [outv]")
+        )
+
         subprocess.run(
             [
                 # fmt: off
@@ -227,13 +243,8 @@ class PitchConverter:
                 "-loglevel", "error",
                 "-stats",
                 *inputs,
-                "-c:v", "h264_nvenc",  # 使用 NVIDIA NVENC 編碼器
                 "-filter_complex",
-                f"[0:v]hwupload [base];"
-                # Scale the pitch video to half of the original video
-                f"[1:v]hwupload,scale_cuda={self.pitch_width or self.resolution[0] // 2}:-1 [pitch];"
-                # combine the video
-                f"[base][pitch]overlay_cuda={self.pitch_position} [outv]",
+                filter_complex.format(scale=self.pitch_width or self.resolution[0] // 2, position=self.pitch_position),
                 "-map", "[outv]",
                 "-map", "0:a",
                 self.output_path,
