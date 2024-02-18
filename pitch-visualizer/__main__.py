@@ -93,7 +93,7 @@ def _main_(
         pitch_position=pitch_position_,
         min_freq=tone.Tonality.normalize_to_freq(min_pitch),
         max_freq=tone.Tonality.normalize_to_freq(max_pitch),
-    )()
+    ).run()
 
 
 if __name__ == "__main__":

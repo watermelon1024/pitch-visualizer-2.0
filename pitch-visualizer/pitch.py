@@ -49,9 +49,6 @@ class PitchConverter:
         self.min_freq = min_freq
         self.max_freq = max_freq
 
-    def __call__(self, *args, **kwds):
-        return self.run()
-
     def run(self):
         self.get_video_resolution()
         with tempfile.TemporaryDirectory() as tmpdir:
