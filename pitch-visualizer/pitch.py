@@ -189,7 +189,7 @@ class PitchConverter:
         curr_time = np.float32(frame_idx / self.fps)
         time_start = curr_time - self.time_range
         time_end = curr_time + self.time_range
-        mid_line.set_data([[curr_time, curr_time], [0, 1]])
+        mid_line.set_xdata((curr_time, curr_time))
 
         decimal = curr_time % self.float_1
         show_time_range = np.arange(
@@ -210,8 +210,8 @@ class PitchConverter:
             avr_pitch = np.nanmean(pitch_in_range)
 
         if not np.isnan(avr_pitch):
-            pitch_low = avr_pitch * 0.7  # 0.7071067811865476
-            pitch_high = avr_pitch * 1.7  # 1.8171205928321397
+            pitch_low = avr_pitch * 0.70710678
+            pitch_high = avr_pitch * 1.81712059
             ax.set_ylim(pitch_low, pitch_high)
 
             # Set labels' visibilities based on pitch
