@@ -17,6 +17,12 @@ class PitchConverter:
     progress_bar: ProgressBar
     resolution: tuple[int, int] = None
 
+    time_range = np.float32(2.5)
+    float_1 = np.float32(1)
+    float_0_5 = np.float32(0.5)
+    float_left_xlim = np.float32(24 / 60)
+    float_right_xlim = np.float32(34 / 60)
+
     def __init__(
         self,
         audio: str,
@@ -36,7 +42,6 @@ class PitchConverter:
         self.output_path = output
         self.tone = tone
         self.fps = fps
-        self.dt = 1 / fps
         self.gpu = gpu
         self.ffmpeg = ffmpeg
         self.pitch_width = pitch_width
@@ -95,7 +100,6 @@ class PitchConverter:
         # create figure
         fig = plt.figure(figsize=(9.6, 5.4), layout="tight", dpi=100)
         fig.set_animated(True)
-        # resolution: tuple(r / 200 for r in self.resolution)
         ax = fig.add_subplot(1, 1, 1)
         # Y-axis
         ax.get_yaxis().set_visible(False)
@@ -107,7 +111,7 @@ class PitchConverter:
         # tone standard line
         tone_labels: list[plt.Text] = []
         for tone, f in Tonality(self.tone).get_tone_and_freq(self.min_freq, self.max_freq):
-            line = ax.axhline(y=f, color="blue")
+            line = ax.axhline(y=f, color="blue", linewidth=1)
             line.set_animated(True)
             y = f + 0.02
             text = ax.text(1.02, y, tone, ha="left", va="bottom", fontsize=10)
@@ -115,11 +119,9 @@ class PitchConverter:
             text.set_animated(True)
             tone_labels.append(text)
         # X-axis
-        # ax.set_xlim(sound.xmin, sound.xmax)
-        ax.get_xaxis().set_visible(False)
+        ax.set_xlim(-2.5, 2.5)
         # draw mid line (current time)
-        mid_line = ax.axvline(0, color="red")
-        mid_labels = fig.text(0.5, 0, "0", ha="center", va="bottom", fontsize=9)
+        mid_line = ax.axvline(0, color="red", linewidth=2)
         # draw vocal date
         (pitch_plot,) = ax.plot(pitch_xs, pitch_values, ".", markersize=5, color="orange")
         # set animate
@@ -139,7 +141,6 @@ class PitchConverter:
                 pitch_plot,
                 tuple(tone_labels),
                 mid_line,
-                mid_labels,
                 os.path.join(output_dir, "pitch.mp4"),
             )
             output_paths.append(output_path)
@@ -157,7 +158,6 @@ class PitchConverter:
         pitch_plot: plt.Line2D,
         tone_labels: tuple[plt.Text],
         mid_line: plt.Line2D,
-        mid_labels: plt.Text,
         output_path: str,
     ):
         # print(f"Gen output_path: {output_path}, time: {range_obj[0]}-{range_obj[-1]}")
@@ -170,7 +170,6 @@ class PitchConverter:
                 pitch=pitch,
                 pitch_plot=pitch_plot,
                 mid_line=mid_line,
-                mid_labels=mid_labels,
                 tone_labels=tone_labels,
             ),
             frames=range_obj,
@@ -188,22 +187,23 @@ class PitchConverter:
         pitch: np.ndarray,
         pitch_plot: plt.Line2D,
         mid_line: plt.Line2D,
-        mid_labels: plt.Text,
         tone_labels: list[plt.Text],
     ):
-        curr_time = frame_idx / self.fps
-        time_start = curr_time - 2.5
-        time_end = curr_time + 2.5
+        curr_time = np.float32(frame_idx / self.fps)
+        time_start = curr_time - self.time_range
+        time_end = curr_time + self.time_range
         mid_line.set_data([[curr_time, curr_time], [0, 1]])
+
+        decimal = curr_time % self.float_1
+        show_time_range = np.arange(
+            np.ceil(time_start) + (1 if self.float_left_xlim <= decimal <= self.float_0_5 else 0),
+            np.floor(time_end) + (0 if self.float_0_5 <= decimal <= self.float_right_xlim else 1),
+        )
+        ax.set_xticks(show_time_range, map(self._time_format, show_time_range))
 
         # pitch data
         time_mask = (time >= time_start) & (time <= time_end)
         pitch_plot.set_data(time[time_mask], pitch[time_mask])
-        mid_labels.set_text(f"{curr_time:.1f}")
-
-        if time_start % 1 == 0:
-            time_start -= self.dt
-            time_end += self.dt
 
         # Calculate the average pitch only with the middle part of pitch_vals
         # np.nanmean will generate a warning if all values are nan, ignore it
@@ -232,6 +232,12 @@ class PitchConverter:
 
         return (pitch_plot,)
 
+    def _time_format(self, seconds: int):
+        if seconds < 0:
+            return "-:--"
+        minutes, remaining_seconds = divmod(seconds, 60)
+        return f"{minutes:.0f}:{remaining_seconds:02.0f}"
+
     def combine_video(self, pitch_paths: list[str]):
         print("Combining video")
         print(f"Writing to {os.path.abspath(self.output_path)}")
@@ -256,7 +262,7 @@ class PitchConverter:
                 "[base][pitch]overlay_cuda={position} [outv]"
             )
             if self.gpu
-            else ("[1:v]scale={scale}:-1 [pitch];" "[0:v][pitch]overlay={position} [outv]")
+            else ("[1:v]scale={scale}:-1 [pitch]; [0:v][pitch]overlay={position} [outv]")
         )
 
         subprocess.run(
