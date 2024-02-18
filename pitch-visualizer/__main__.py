@@ -44,10 +44,11 @@ from .pitch import PitchConverter
     The position to the stick pitch graph,
     can be [top_right|top_left|bottom_right|bottom_left]
     or specify custom coordinates (x:y)
-    """
+    """,
 )
 @click.option("--min-pitch", type=click.Choice(tone.TONE_FREQ_MAP.keys()), default="D2")
 @click.option("--max-pitch", type=click.Choice(tone.TONE_FREQ_MAP.keys()), default="G5")
+@click.option("--theme", type=str, help="The theme of the pitch graph. Options: [default|dark]")
 def _main_(
     audio: str,
     video: str,
@@ -60,6 +61,7 @@ def _main_(
     pitch_position: str,
     min_pitch: str,
     max_pitch: str,
+    theme: str,
 ):
     if ffmpeg is None:
         ffmpeg = shutil.which("ffmpeg")
@@ -81,6 +83,30 @@ def _main_(
             print("Invalid pitch position")
             exit(1)
 
+    theme_dict = {
+        "dark": {
+            "text.color": "white",
+            "background.color": "#3B3B3B",
+            "edgeline.color": "white",
+            "pitch.data.color": "lime",
+            "tone.line.color": "aqua",
+            "curr_time_line.color": "red",
+            "time_text.color": "white",
+        },
+        "default": {
+            "text.color": "black",
+            "background.color": "white",
+            "edgeline.color": "black",
+            "pitch.data.color": "orange",
+            "tone.line.color": "deepskyblue",
+            "curr_time_line.color": "red",
+            "time_text.color": "black",
+        },
+    }.get(theme)
+    if theme_dict is None:
+        print("Invalid theme")
+        exit(1)
+
     PitchConverter(
         audio=audio,
         video=video,
@@ -93,6 +119,7 @@ def _main_(
         pitch_position=pitch_position_,
         min_freq=tone.Tonality.normalize_to_freq(min_pitch),
         max_freq=tone.Tonality.normalize_to_freq(max_pitch),
+        theme=theme_dict,
     ).run()
 
 

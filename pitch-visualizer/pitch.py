@@ -36,6 +36,7 @@ class PitchConverter:
         pitch_position: str,
         min_freq: str,
         max_freq: str,
+        theme: dict,
     ):
         self.audio_path = audio
         self.video_path = video
@@ -48,6 +49,7 @@ class PitchConverter:
         self.pitch_position = pitch_position
         self.min_freq = min_freq
         self.max_freq = max_freq
+        self.theme = theme
 
     def run(self):
         self.get_video_resolution()
@@ -93,9 +95,22 @@ class PitchConverter:
         pitch_xs = pitch.xs()
         total_frames_count = int(sound.xmax * self.fps)
 
-        plt.rcParams.update({"font.size": 9})
+        plt.rcParams.update(
+            {
+                "font.size": 9,
+                "text.color": self.theme["text.color"],
+                "figure.facecolor": self.theme["background.color"],
+                "figure.edgecolor": self.theme["background.color"],
+                "axes.facecolor": self.theme["background.color"],
+                "axes.edgecolor": self.theme["edgeline.color"],
+                "axes.labelcolor": self.theme["time_text.color"],
+                "xtick.color": self.theme["time_text.color"],
+            }
+        )
         # create figure
-        fig = plt.figure(figsize=(9.6, 5.4), layout="tight", dpi=100)
+        fig = plt.figure(
+            figsize=(9.6, 5.4), layout="tight", dpi=100, facecolor=self.theme["background.color"]
+        )
         fig.set_animated(True)
         ax = fig.add_subplot(1, 1, 1)
         # Y-axis
@@ -108,7 +123,7 @@ class PitchConverter:
         # tone standard line
         tone_labels: list[plt.Text] = []
         for tone, f in Tonality(self.tone).get_tone_and_freq(self.min_freq, self.max_freq):
-            line = ax.axhline(y=f, color="blue", linewidth=1)
+            line = ax.axhline(y=f, color=self.theme["tone.line.color"], linewidth=1)
             line.set_animated(True)
             y = f + 0.02
             text = ax.text(1.02, y, tone, ha="left", va="bottom", fontsize=10)
@@ -118,9 +133,11 @@ class PitchConverter:
         # X-axis
         ax.set_xlim(-2.5, 2.5)
         # draw mid line (current time)
-        mid_line = ax.axvline(0, color="red", linewidth=2)
+        mid_line = ax.axvline(0, color=self.theme["curr_time_line.color"], linewidth=2)
         # draw vocal date
-        (pitch_plot,) = ax.plot(pitch_xs, pitch_values, ".", markersize=5, color="orange")
+        (pitch_plot,) = ax.plot(
+            pitch_xs, pitch_values, ".", markersize=5, color=self.theme["pitch.data.color"]
+        )
         # set animate
         for artist in (*tone_labels, mid_line, pitch_plot):
             artist.set_animated(True)
