@@ -48,7 +48,12 @@ from .pitch import PitchConverter
 )
 @click.option("--min-pitch", type=click.Choice(tone.TONE_FREQ_MAP.keys()), default="D2")
 @click.option("--max-pitch", type=click.Choice(tone.TONE_FREQ_MAP.keys()), default="G5")
-@click.option("--theme", type=str, help="The theme of the pitch graph. Options: [default|dark]")
+@click.option(
+    "--theme",
+    type=str,
+    help="The theme of the pitch graph. Options: [dark|light]",
+    default="light",
+)
 def _main_(
     audio: str,
     video: str,
@@ -93,7 +98,7 @@ def _main_(
             "curr_time_line.color": "red",
             "time_text.color": "white",
         },
-        "default": {
+        "light": {
             "text.color": "black",
             "background.color": "white",
             "edgeline.color": "black",
