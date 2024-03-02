@@ -1,7 +1,6 @@
 import os
 import subprocess
 import tempfile
-import warnings
 from functools import partial
 
 import matplotlib.animation as animation
@@ -91,6 +90,7 @@ class PitchConverter:
         # vocal
         pitch_values = pitch.selected_array["frequency"]
         pitch_values[pitch_values == 0] = np.nan
+        pitch_values = np.log(pitch_values)
         # time
         pitch_xs = pitch.xs()
         total_frames_count = int(sound.xmax * self.fps)
@@ -115,22 +115,23 @@ class PitchConverter:
         ax = fig.add_subplot(1, 1, 1)
         # Y-axis
         ax.get_yaxis().set_visible(False)
-        ax.set_yscale("log")
         ax.set_ylabel("fundamental frequency [Hz]")
-        pitch_low = 256 * 0.7
-        pitch_high = 256 * 1.7
+        pitch_low = 5
+        pitch_high = 6
         ax.set_ylim(pitch_low, pitch_high)
         # tone standard line
         tone_labels: list[plt.Text] = []
         for tone, f in Tonality(self.tone).get_tone_and_freq(self.min_freq, self.max_freq):
+            f = np.log(f)
             line = ax.axhline(y=f, color=self.theme["tone.line.color"], linewidth=1)
             line.set_animated(True)
-            y = f + 0.02
-            text = ax.text(1.02, y, tone, ha="left", va="bottom", fontsize=10)
-            text.set_visible(pitch_low <= y <= pitch_high)
+            text = ax.text(1.02, f, tone, ha="left", va="bottom", fontsize=10)
+            text.set_visible(pitch_low <= f <= pitch_high)
             text.set_animated(True)
             tone_labels.append(text)
         # X-axis
+        time_range = np.arange(-2, np.floor(sound.xmax) + 4)
+        ax.set_xticks(time_range, map(self._time_format, time_range))
         ax.set_xlim(-2.5, 2.5)
         # draw mid line (current time)
         mid_line = ax.axvline(0, color=self.theme["curr_time_line.color"], linewidth=2)
@@ -188,6 +189,7 @@ class PitchConverter:
             ),
             frames=range_obj,
             blit=True,
+            cache_frame_data=False,
         )
         ani.save(output_path, writer=animation.FFMpegWriter(fps=self.fps))
         # print(f"Done output_path: {output_path}")
@@ -213,34 +215,28 @@ class PitchConverter:
             np.ceil(time_start) + (1 if self.float_left_xlim <= decimal <= self.float_0_5 else 0),
             np.floor(time_end) + (0 if self.float_0_5 <= decimal <= self.float_right_xlim else 1),
         )
-        ax.set_xticks(show_time_range, map(self._time_format, show_time_range))
+        ax.set_xticks(show_time_range)
+        ax.set_xlim(time_start, time_end)
 
         # pitch data
         time_mask = (time >= time_start) & (time <= time_end)
         pitch_plot.set_data(time[time_mask], pitch[time_mask])
 
         # Calculate the average pitch only with the middle part of pitch_vals
-        # np.nanmean will generate a warning if all values are nan, ignore it
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)
-            pitch_in_range = pitch[(time >= curr_time - 0.4) & (time <= curr_time + 0.4)]
+        pitch_in_range = pitch[(time >= curr_time - 0.4) & (time <= curr_time + 0.4)]
+        if not np.all(np.isnan(pitch_in_range)):
             avr_pitch = np.nanmean(pitch_in_range)
-
-        if not np.isnan(avr_pitch):
-            pitch_low = avr_pitch * 0.70710678
-            pitch_high = avr_pitch * 1.81712059
+            pitch_low = avr_pitch - 0.4
+            pitch_high = avr_pitch + 0.5
             ax.set_ylim(pitch_low, pitch_high)
 
             # Set labels' visibilities based on pitch
             for label in tone_labels:
                 _, y = label.get_position()
-                label.set_visible(pitch_low <= y <= pitch_high)
+                label.set_visible(pitch_low <= y <= (pitch_high - 0.03))
 
         for label in tone_labels:
-            _, y = label.get_position()
-            label.set_position((time_start + 0.02, y))
-
-        ax.set_xlim(time_start, time_end)
+            label.set_x(time_start + 0.02)
 
         self.progress_bar.advance()
 
